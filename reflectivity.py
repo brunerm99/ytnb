@@ -32,7 +32,7 @@ def _(mo):
     and an app mode if you don't care about the code and just want to play around with the concepts (`Ctrl+.`).
 
     > Provided as supplemental material for [Marshall Bruner](https://tinyurl.com/marshall-bruner-yt)'s
-    > [animated introduction to dual-pol weather radar](https://tinyurl.com/reflectivity-video).
+    > [animated introduction to weather radar reflectivity](https://tinyurl.com/reflectivity-video).
 
     - [GitHub](https://tinyurl.com/github-nb)
     - [YouTube](https://tinyurl.com/marshall-bruner-yt-nb)
