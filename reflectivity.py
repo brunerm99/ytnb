@@ -28,8 +28,7 @@ def _(mo):
     $$
 
     This is a new notebook type I'm trying. You'll use it in basically the same way - it's still just python -
-    but marimo adds some cool interaction features, nice formatting,
-    and an app mode if you don't care about the code and just want to play around with the concepts (`Ctrl+.`).
+    but marimo adds some cool interaction features and nice formatting.
 
     > Provided as supplemental material for [Marshall Bruner](https://tinyurl.com/marshall-bruner-yt)'s
     > [animated introduction to weather radar reflectivity](https://tinyurl.com/reflectivity-video).
