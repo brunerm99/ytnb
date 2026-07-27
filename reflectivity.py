@@ -1,3 +1,13 @@
+# /// script
+# requires-python = ">=3.12"
+# dependencies = [
+#     "marimo>=0.23.14",
+#     "matplotlib",
+#     "numpy",
+#     "scipy",
+# ]
+# ///
+
 import marimo
 
 __generated_with = "0.23.14"
@@ -26,8 +36,6 @@ def _(mo):
 
     - [GitHub](https://tinyurl.com/github-nb)
     - [YouTube](https://tinyurl.com/marshall-bruner-yt-nb)
-
-    ![thumbnail](https://drive.google.com/uc?id=1e3Lxy-2z0uBRiAc386v0DHbcycVSeSeU)
     """)
     return
 
