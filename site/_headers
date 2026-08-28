@@ -1,0 +1,9 @@
+# Touchstone / data files are readable from anywhere, so a notebook served
+# from another origin (or a local marimo session) can fetch them.
+/public/*
+  Access-Control-Allow-Origin: *
+  Cache-Control: public, max-age=3600
+
+# Hashed build assets never change
+/:notebook/assets/*
+  Cache-Control: public, max-age=31536000, immutable
