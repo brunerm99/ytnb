@@ -5,6 +5,8 @@
 #     "numpy",
 #     "matplotlib",
 #     "scikit-rf",
+#     "anywidget",
+#     "traitlets",
 # ]
 # ///
 
@@ -29,11 +31,22 @@ def _(mo):
     return
 
 
+@app.cell(hide_code=True)
+def _(mo):
+    mo.sidebar(
+        mo.outline(label="Contents"),
+        width="18rem",
+    )
+    return
+
+
 @app.cell
 def _():
     import numpy as np
     import matplotlib.pyplot as plt
     import skrf as rf
+    import anywidget
+    import traitlets
 
     plt.style.use("seaborn-v0_8")
     plt.rcParams.update(
@@ -46,7 +59,7 @@ def _():
             "legend.fontsize": 16,
         },
     )
-    return np, plt, rf
+    return anywidget, np, plt, rf, traitlets
 
 
 @app.cell(hide_code=True)
@@ -57,13 +70,13 @@ def _(mo):
     Voltage gain:
 
     $$
-        \large G = 20 \log_{10}{\left(\frac{V_{out}}{V_{in}}\right)}
+        \Large G = 20 \log_{10}{\left(\frac{V_{out}}{V_{in}}\right)}
     $$
 
     Power gain:
 
     $$
-        \large G = 10 \log_{10}{\left(\frac{P_{out}}{P_{in}}\right)}
+        \Large G = 10 \log_{10}{\left(\frac{P_{out}}{P_{in}}\right)}
     $$
     """)
     return
@@ -107,7 +120,381 @@ def _(mo, np, plt):
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
-    ## ADL8142
+    ## Amplifying a multi-frequency signal
+    """)
+    return
+
+
+@app.cell
+def _(mo, np, plt):
+    illustrative_sample_rate_hz = 200e6
+    illustrative_duration_s = 1e-6
+    illustrative_sample_count = int(
+        illustrative_sample_rate_hz * illustrative_duration_s
+    )
+    illustrative_time_s = (
+        np.arange(illustrative_sample_count) / illustrative_sample_rate_hz
+    )
+    component_frequencies_hz = np.array([5e6, 15e6, 30e6])
+    input_signal = np.cos(
+        2 * np.pi * component_frequencies_hz[:, None] * illustrative_time_s
+    ).sum(axis=0)
+    # N = 2**12
+    N = illustrative_sample_count
+    illustrative_fft_frequency_hz = np.fft.rfftfreq(
+        N,
+        1 / illustrative_sample_rate_hz,
+    )
+    input_spectrum = np.fft.rfft(input_signal, N)
+    input_spectrum_amplitude = (
+        2 * np.abs(input_spectrum) / illustrative_sample_count
+    )
+    illustrative_frequency_mask = illustrative_fft_frequency_hz <= 40e6
+
+    _fig, _ax = plt.subplots(nrows=2, figsize=(12, 8))
+    _ax[0].set_title("Input Time Series")
+    _ax[0].plot(illustrative_time_s / 1e-6, input_signal, c="C0")
+    _ax[0].set_xlabel(r"Time ($\mu$s)")
+    _ax[0].set_ylabel("Amplitude")
+    _ax[1].set_title("Input Frequency Spectrum")
+    _ax[1].plot(
+        illustrative_fft_frequency_hz[illustrative_frequency_mask] / 1e6,
+        input_spectrum_amplitude[illustrative_frequency_mask],
+        c="C0",
+    )
+    _ax[1].set_xlabel("Frequency (MHz)")
+    _ax[1].set_ylabel("Amplitude")
+    _fig.tight_layout(pad=4, h_pad=5)
+    mo.vstack(
+        [_fig, mo.Html("<div style='height: 24px'></div>")],
+        gap=0,
+    )
+    return (
+        N,
+        component_frequencies_hz,
+        illustrative_fft_frequency_hz,
+        illustrative_frequency_mask,
+        illustrative_time_s,
+        input_signal,
+        input_spectrum,
+        input_spectrum_amplitude,
+    )
+
+
+@app.cell
+def _(anywidget, component_frequencies_hz, mo, traitlets):
+    _EQ_ESM = r"""
+    function render({ model, el }) {
+      const NS = "http://www.w3.org/2000/svg";
+      const W = 760, H = 400, ML = 64, MR = 18, MT = 46, MB = 58;
+      const XMIN = 0, XMAX = 40, YMIN = -22, YMAX = 16;
+      const GMIN = -20, GMAX = 15, SNAP = 0.5;
+
+      const px = (f) => ML + ((f - XMIN) / (XMAX - XMIN)) * (W - ML - MR);
+      const py = (g) => MT + ((YMAX - g) / (YMAX - YMIN)) * (H - MT - MB);
+
+      const freqs = model.get("freqs_mhz");
+      let gains = [...model.get("gains_db")];
+      const markers = model.get("markers_mhz");
+      const controller = new AbortController();
+      const { signal } = controller;
+
+      const svg = document.createElementNS(NS, "svg");
+      svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+      svg.style.cssText =
+        "width:100%;max-width:860px;display:block;margin:0 auto;user-select:none;" +
+        "touch-action:none;background:#fff;border-radius:4px;" +
+        "font-family:'DejaVu Sans',Verdana,sans-serif;";
+
+      const make = (tag, attrs, parent = svg) => {
+        const n = document.createElementNS(NS, tag);
+        for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v);
+        parent.append(n);
+        return n;
+      };
+      const text = (str, attrs, parent = svg) => {
+        const t = make("text", attrs, parent);
+        t.textContent = str;
+        return t;
+      };
+
+      make("rect", { x: ML, y: MT, width: W - ML - MR, height: H - MT - MB, fill: "#eaeaf2" });
+      for (let f = XMIN; f <= XMAX; f += 5) {
+        make("line", { x1: px(f), y1: MT, x2: px(f), y2: H - MB, stroke: "#fff", "stroke-width": 1.2 });
+        text(String(f), { x: px(f), y: H - MB + 20, "text-anchor": "middle", "font-size": 13, fill: "#333" });
+      }
+      for (let g = -20; g <= 15; g += 5) {
+        make("line", { x1: ML, y1: py(g), x2: W - MR, y2: py(g), stroke: "#fff", "stroke-width": 1.2 });
+        text(String(g), { x: ML - 8, y: py(g) + 4, "text-anchor": "end", "font-size": 13, fill: "#333" });
+      }
+      make("line", { x1: ML, y1: py(0), x2: W - MR, y2: py(0), stroke: "#000", "stroke-width": 1 });
+      for (const mf of markers) {
+        if (mf < XMIN || mf > XMAX) continue;
+        make("line", {
+          x1: px(mf), y1: MT, x2: px(mf), y2: H - MB,
+          stroke: "#c44e52", "stroke-width": 1, "stroke-dasharray": "4 4", opacity: 0.55,
+        });
+      }
+      text("Dummy Values Example", {
+        x: (ML + W - MR) / 2, y: 26, "text-anchor": "middle",
+        "font-size": 19, "font-weight": 600, fill: "#222",
+      });
+      text("Frequency (MHz)", {
+        x: (ML + W - MR) / 2, y: H - 14, "text-anchor": "middle", "font-size": 15, fill: "#222",
+      });
+      const yl = text("Gain (dB)", {
+        x: 18, y: (MT + H - MB) / 2, "text-anchor": "middle", "font-size": 15, fill: "#222",
+      });
+      yl.setAttribute("transform", `rotate(-90 18 ${(MT + H - MB) / 2})`);
+
+      const curve = make("polyline", {
+        fill: "none", stroke: "#4c72b0", "stroke-width": 2.2, "stroke-linejoin": "round",
+      });
+
+      const editable = [];
+      freqs.forEach((f, i) => {
+        if (f >= XMIN && f <= XMAX) editable.push(i);
+      });
+      const handles = editable.map(() =>
+        make("circle", {
+          r: 7, fill: "#c44e52", stroke: "#fff", "stroke-width": 1.5, cursor: "ns-resize",
+        })
+      );
+      const label = text("", {
+        x: 0, y: 0, "text-anchor": "middle", "font-size": 13, "font-weight": 600,
+        fill: "#c44e52", visibility: "hidden",
+      });
+
+      const redraw = () => {
+        curve.setAttribute(
+          "points",
+          editable.map((i) => `${px(freqs[i])},${py(gains[i])}`).join(" ")
+        );
+        editable.forEach((i, k) => {
+          handles[k].setAttribute("cx", px(freqs[i]));
+          handles[k].setAttribute("cy", py(gains[i]));
+        });
+      };
+
+      const toGain = (clientY) => {
+        const r = svg.getBoundingClientRect();
+        const sy = ((clientY - r.top) * H) / r.height;
+        let g = YMAX - ((sy - MT) * (YMAX - YMIN)) / (H - MT - MB);
+        g = Math.max(GMIN, Math.min(GMAX, g));
+        return Math.round(g / SNAP) * SNAP;
+      };
+
+      handles.forEach((h, k) => {
+        const i = editable[k];
+        h.addEventListener(
+          "pointerdown",
+          (e) => {
+            e.preventDefault();
+            h.setPointerCapture(e.pointerId);
+            const move = (ev) => {
+              gains[i] = toGain(ev.clientY);
+              redraw();
+              label.setAttribute("x", px(freqs[i]));
+              label.setAttribute("y", py(gains[i]) - 14);
+              label.setAttribute("visibility", "visible");
+              label.textContent =
+                `${gains[i] > 0 ? "+" : ""}${gains[i].toFixed(1)} dB`;
+            };
+            const up = () => {
+              h.removeEventListener("pointermove", move);
+              label.setAttribute("visibility", "hidden");
+              model.set("gains_db", [...gains]);
+              model.save_changes();
+            };
+            h.addEventListener("pointermove", move);
+            h.addEventListener("pointerup", up, { once: true });
+            h.addEventListener("pointercancel", up, { once: true });
+          },
+          { signal }
+        );
+      });
+
+      model.on("change:gains_db", () => {
+        gains = [...model.get("gains_db")];
+        redraw();
+      });
+
+      redraw();
+      const wrap = document.createElement("div");
+      wrap.style.cssText = "display:flex;align-items:center;gap:10px;";
+      const btn = document.createElement("button");
+      btn.textContent = "All high";
+      btn.title = "Set every band to +15 dB";
+      btn.style.cssText =
+        "flex:none;padding:6px 12px;border:1px solid #c44e52;border-radius:6px;" +
+        "background:#fff;color:#c44e52;font-weight:600;cursor:pointer;";
+      btn.addEventListener(
+        "click",
+        () => {
+          for (const i of editable) gains[i] = GMAX;
+          redraw();
+          model.set("gains_db", [...gains]);
+          model.save_changes();
+        },
+        { signal }
+      );
+      wrap.append(svg, btn);
+      el.append(wrap);
+      return () => controller.abort();
+    }
+    export default { render };
+    """
+
+    class _GainEQ(anywidget.AnyWidget):
+        _esm = _EQ_ESM
+        freqs_mhz = traitlets.List(traitlets.Float()).tag(sync=True)
+        gains_db = traitlets.List(traitlets.Float()).tag(sync=True)
+        markers_mhz = traitlets.List(traitlets.Float()).tag(sync=True)
+
+    gain_eq = _GainEQ(
+        freqs_mhz=[0.0, 5.0, 10.0, 15.0, 20.0, 25.0, 30.0, 35.0, 40.0, 100.0],
+        gains_db=[0.0, 12.0, 8.0, 3.0, 0.0, -4.0, -9.0, -12.0, -15.0, -20.0],
+        markers_mhz=[float(f) for f in component_frequencies_hz / 1e6],
+    )
+    get_eq_gains_db, set_eq_gains_db = mo.state(gain_eq.gains_db)
+    gain_eq.observe(
+        lambda _: set_eq_gains_db(gain_eq.gains_db), names=["gains_db"]
+    )
+    gain_eq
+    return gain_eq, get_eq_gains_db
+
+
+@app.cell
+def _(gain_eq, get_eq_gains_db, illustrative_fft_frequency_hz, np):
+    illustrative_amp_frequency_hz = np.array(gain_eq.freqs_mhz) * 1e6
+    illustrative_amp_gain_db = np.array(get_eq_gains_db())
+    interpolated_amp_gain_db = np.interp(
+        illustrative_fft_frequency_hz,
+        illustrative_amp_frequency_hz,
+        illustrative_amp_gain_db,
+    )
+    illustrative_voltage_gain = 10 ** (interpolated_amp_gain_db / 20)
+    return (illustrative_voltage_gain,)
+
+
+@app.cell
+def _(
+    N,
+    illustrative_fft_frequency_hz,
+    illustrative_frequency_mask,
+    illustrative_time_s,
+    illustrative_voltage_gain,
+    input_signal,
+    input_spectrum,
+    input_spectrum_amplitude,
+    mo,
+    np,
+    plt,
+):
+    output_spectrum = input_spectrum * illustrative_voltage_gain
+    output_signal = np.fft.irfft(output_spectrum, n=N)
+    output_spectrum_amplitude = 2 * np.abs(output_spectrum) / N
+    time_amplitude_limit = 1.1 * max(
+        np.max(np.abs(input_signal)),
+        np.max(np.abs(output_signal)),
+    )
+    spectrum_amplitude_limit = 1.1 * max(
+        np.max(input_spectrum_amplitude),
+        np.max(output_spectrum_amplitude),
+    )
+
+    _fig, _ax = plt.subplots(nrows=2, figsize=(12, 8))
+    _ax[0].set_title("Output Time Series")
+    _ax[0].plot(illustrative_time_s / 1e-6, output_signal, c="C1")
+    _ax[0].set_xlabel(r"Time ($\mu$s)")
+    _ax[0].set_ylabel("Amplitude")
+    _ax[1].set_title("Output Frequency Spectrum")
+    _ax[1].plot(
+        illustrative_fft_frequency_hz[illustrative_frequency_mask] / 1e6,
+        output_spectrum_amplitude[illustrative_frequency_mask],
+        c="C1",
+    )
+    _ax[1].set_xlabel("Frequency (MHz)")
+    _ax[1].set_ylabel("Amplitude")
+    _fig.tight_layout(pad=4, h_pad=5)
+    mo.vstack(
+        [_fig, mo.Html("<div style='height: 24px'></div>")],
+        gap=0,
+    )
+    return (
+        output_signal,
+        output_spectrum_amplitude,
+        spectrum_amplitude_limit,
+        time_amplitude_limit,
+    )
+
+
+@app.cell
+def _(
+    gain_eq,
+    illustrative_fft_frequency_hz,
+    illustrative_frequency_mask,
+    illustrative_time_s,
+    input_signal,
+    input_spectrum_amplitude,
+    mo,
+    output_signal,
+    output_spectrum_amplitude,
+    plt,
+    spectrum_amplitude_limit,
+    time_amplitude_limit,
+):
+    _fig_in, _ax_in = plt.subplots(ncols=2, figsize=(12, 4))
+    _ax_in[0].set_title("Input Time Series")
+    _ax_in[0].plot(illustrative_time_s / 1e-6, input_signal, c="C0")
+    _ax_in[0].set_ylim(-time_amplitude_limit, time_amplitude_limit)
+    _ax_in[0].set_xlabel(r"Time ($\mu$s)")
+    _ax_in[0].set_ylabel("Amplitude")
+    _ax_in[1].set_title("Input Frequency Spectrum")
+    _ax_in[1].plot(
+        illustrative_fft_frequency_hz[illustrative_frequency_mask] / 1e6,
+        input_spectrum_amplitude[illustrative_frequency_mask],
+        c="C0",
+    )
+    _ax_in[1].set_ylim(0, spectrum_amplitude_limit)
+    _ax_in[1].set_xlabel("Frequency (MHz)")
+    _ax_in[1].set_ylabel("Amplitude")
+    _fig_in.tight_layout(pad=3, w_pad=3)
+
+    _fig_out, _ax_out = plt.subplots(ncols=2, figsize=(12, 4))
+    _ax_out[0].set_title("Output Time Series")
+    _ax_out[0].plot(illustrative_time_s / 1e-6, output_signal, c="C1")
+    _ax_out[0].set_ylim(-time_amplitude_limit, time_amplitude_limit)
+    _ax_out[0].set_xlabel(r"Time ($\mu$s)")
+    _ax_out[0].set_ylabel("Amplitude")
+    _ax_out[1].set_title("Output Frequency Spectrum")
+    _ax_out[1].plot(
+        illustrative_fft_frequency_hz[illustrative_frequency_mask] / 1e6,
+        output_spectrum_amplitude[illustrative_frequency_mask],
+        c="C1",
+    )
+    _ax_out[1].set_ylim(0, spectrum_amplitude_limit)
+    _ax_out[1].set_xlabel("Frequency (MHz)")
+    _ax_out[1].set_ylabel("Amplitude")
+    _fig_out.tight_layout(pad=3, w_pad=3)
+
+    mo.vstack(
+        [
+            mo.md("### Multi-Tone Signal Through an Example Amplifier"),
+            _fig_in,
+            gain_eq,
+            _fig_out,
+            mo.Html("<div style='height: 24px'></div>"),
+        ],
+        gap=0.5,
+    )
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ## Using a real component: ADL8142
     K-band low-noise amplifier (LNA)
 
     [Datasheet](https://www.analog.com/media/en/technical-documentation/data-sheets/adl8142.pdf)
@@ -165,7 +552,7 @@ def _(amp, mo, plt):
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
-    ## Amplifying a linear frequency-modulated (LFM) signal
+    ### Amplifying a linear frequency-modulated (LFM) signal
     """)
     return
 
@@ -231,248 +618,6 @@ def _(amp, mo, np, plt):
     _ax[1][1].set_xlabel("Frequency (GHz)")
     _ax[1][1].set_ylabel("Magnitude (dB)")
     _fig.tight_layout(rect=[0, 0, 1, 0.93], pad=4, h_pad=5, w_pad=3)
-    mo.vstack(
-        [_fig, mo.Html("<div style='height: 24px'></div>")],
-        gap=0,
-    )
-    return
-
-
-@app.cell(hide_code=True)
-def _(mo):
-    mo.md(r"""
-    ## Amplifying a multi-frequency signal
-    """)
-    return
-
-
-@app.cell
-def _(mo, np, plt):
-    illustrative_sample_rate_hz = 200e6
-    illustrative_duration_s = 1e-6
-    illustrative_sample_count = int(
-        illustrative_sample_rate_hz * illustrative_duration_s
-    )
-    illustrative_time_s = (
-        np.arange(illustrative_sample_count) / illustrative_sample_rate_hz
-    )
-    component_frequencies_hz = np.array([5e6, 15e6, 30e6])
-    input_signal = np.cos(
-        2 * np.pi * component_frequencies_hz[:, None] * illustrative_time_s
-    ).sum(axis=0)
-    illustrative_fft_frequency_hz = np.fft.rfftfreq(
-        illustrative_sample_count,
-        1 / illustrative_sample_rate_hz,
-    )
-    input_spectrum = np.fft.rfft(input_signal)
-    input_spectrum_amplitude = (
-        2 * np.abs(input_spectrum) / illustrative_sample_count
-    )
-    illustrative_frequency_mask = illustrative_fft_frequency_hz <= 40e6
-
-    _fig, _ax = plt.subplots(nrows=2, figsize=(12, 8))
-    _ax[0].set_title("Input Time Series")
-    _ax[0].plot(illustrative_time_s / 1e-6, input_signal, c="C0")
-    _ax[0].set_xlabel(r"Time ($\mu$s)")
-    _ax[0].set_ylabel("Amplitude")
-    _ax[1].set_title("Input Frequency Spectrum")
-    _ax[1].plot(
-        illustrative_fft_frequency_hz[illustrative_frequency_mask] / 1e6,
-        input_spectrum_amplitude[illustrative_frequency_mask],
-        c="C0",
-    )
-    _ax[1].set_xlabel("Frequency (MHz)")
-    _ax[1].set_ylabel("Amplitude")
-    _fig.tight_layout(pad=4, h_pad=5)
-    mo.vstack(
-        [_fig, mo.Html("<div style='height: 24px'></div>")],
-        gap=0,
-    )
-    return (
-        component_frequencies_hz,
-        illustrative_fft_frequency_hz,
-        illustrative_frequency_mask,
-        illustrative_sample_count,
-        illustrative_time_s,
-        input_signal,
-        input_spectrum,
-        input_spectrum_amplitude,
-    )
-
-
-@app.cell
-def _(component_frequencies_hz, illustrative_fft_frequency_hz, mo, np, plt):
-    illustrative_amp_frequency_hz = (
-        np.array([0, 5, 10, 15, 20, 25, 30, 40, 100]) * 1e6
-    )
-    illustrative_amp_gain_db = np.array([0, 12, 8, 3, 0, -4, -9, -15, -20])
-    interpolated_amp_gain_db = np.interp(
-        illustrative_fft_frequency_hz,
-        illustrative_amp_frequency_hz,
-        illustrative_amp_gain_db,
-    )
-    illustrative_voltage_gain = 10 ** (interpolated_amp_gain_db / 20)
-
-    _fig, _ax = plt.subplots(figsize=(12, 6))
-    _ax.set_title("Illustrative Amplifier Gain")
-    _ax.plot(
-        illustrative_amp_frequency_hz / 1e6,
-        illustrative_amp_gain_db,
-    )
-    _ax.axhline(0, c="k", linewidth=1)
-    _ax.scatter(
-        component_frequencies_hz / 1e6,
-        np.interp(
-            component_frequencies_hz,
-            illustrative_amp_frequency_hz,
-            illustrative_amp_gain_db,
-        ),
-        c="r",
-    )
-    _ax.set_xlim(0, 40)
-    _ax.set_xlabel("Frequency (MHz)")
-    _ax.set_ylabel("Gain (dB)")
-    _fig.tight_layout(pad=4)
-    mo.vstack(
-        [_fig, mo.Html("<div style='height: 24px'></div>")],
-        gap=0,
-    )
-    return (
-        illustrative_amp_frequency_hz,
-        illustrative_amp_gain_db,
-        illustrative_voltage_gain,
-    )
-
-
-@app.cell
-def _(
-    illustrative_fft_frequency_hz,
-    illustrative_frequency_mask,
-    illustrative_sample_count,
-    illustrative_time_s,
-    illustrative_voltage_gain,
-    input_signal,
-    input_spectrum,
-    input_spectrum_amplitude,
-    mo,
-    np,
-    plt,
-):
-    output_spectrum = input_spectrum * illustrative_voltage_gain
-    output_signal = np.fft.irfft(output_spectrum, n=illustrative_sample_count)
-    output_spectrum_amplitude = (
-        2 * np.abs(output_spectrum) / illustrative_sample_count
-    )
-    time_amplitude_limit = 1.1 * max(
-        np.max(np.abs(input_signal)),
-        np.max(np.abs(output_signal)),
-    )
-    spectrum_amplitude_limit = 1.1 * max(
-        np.max(input_spectrum_amplitude),
-        np.max(output_spectrum_amplitude),
-    )
-
-    _fig, _ax = plt.subplots(nrows=2, figsize=(12, 8))
-    _ax[0].set_title("Output Time Series")
-    _ax[0].plot(illustrative_time_s / 1e-6, output_signal, c="C1")
-    _ax[0].set_xlabel(r"Time ($\mu$s)")
-    _ax[0].set_ylabel("Amplitude")
-    _ax[1].set_title("Output Frequency Spectrum")
-    _ax[1].plot(
-        illustrative_fft_frequency_hz[illustrative_frequency_mask] / 1e6,
-        output_spectrum_amplitude[illustrative_frequency_mask],
-        c="C1",
-    )
-    _ax[1].set_xlabel("Frequency (MHz)")
-    _ax[1].set_ylabel("Amplitude")
-    _fig.tight_layout(pad=4, h_pad=5)
-    mo.vstack(
-        [_fig, mo.Html("<div style='height: 24px'></div>")],
-        gap=0,
-    )
-    return (
-        output_signal,
-        output_spectrum_amplitude,
-        spectrum_amplitude_limit,
-        time_amplitude_limit,
-    )
-
-
-@app.cell
-def _(
-    component_frequencies_hz,
-    illustrative_amp_frequency_hz,
-    illustrative_amp_gain_db,
-    illustrative_fft_frequency_hz,
-    illustrative_frequency_mask,
-    illustrative_time_s,
-    input_signal,
-    input_spectrum_amplitude,
-    mo,
-    np,
-    output_signal,
-    output_spectrum_amplitude,
-    plt,
-    spectrum_amplitude_limit,
-    time_amplitude_limit,
-):
-    _fig, _ax = plt.subplot_mosaic(
-        [
-            ["input_time", "input_frequency"],
-            ["amplifier_gain", "amplifier_gain"],
-            ["output_time", "output_frequency"],
-        ],
-        figsize=(12, 12),
-        gridspec_kw={"height_ratios": [1, 0.8, 1]},
-    )
-    _fig.suptitle("Three-Tone Signal Through an Illustrative Amplifier")
-    _ax["input_time"].set_title("Input Time Series")
-    _ax["input_time"].plot(illustrative_time_s / 1e-6, input_signal, c="C0")
-    _ax["input_time"].set_ylim(-time_amplitude_limit, time_amplitude_limit)
-    _ax["input_time"].set_xlabel(r"Time ($\mu$s)")
-    _ax["input_time"].set_ylabel("Amplitude")
-    _ax["input_frequency"].set_title("Input Frequency Spectrum")
-    _ax["input_frequency"].plot(
-        illustrative_fft_frequency_hz[illustrative_frequency_mask] / 1e6,
-        input_spectrum_amplitude[illustrative_frequency_mask],
-        c="C0",
-    )
-    _ax["input_frequency"].set_ylim(0, spectrum_amplitude_limit)
-    _ax["input_frequency"].set_xlabel("Frequency (MHz)")
-    _ax["input_frequency"].set_ylabel("Amplitude")
-    _ax["amplifier_gain"].set_title("Illustrative Amplifier Gain")
-    _ax["amplifier_gain"].plot(
-        illustrative_amp_frequency_hz / 1e6,
-        illustrative_amp_gain_db,
-    )
-    _ax["amplifier_gain"].axhline(0, c="k", linewidth=1)
-    _ax["amplifier_gain"].scatter(
-        component_frequencies_hz / 1e6,
-        np.interp(
-            component_frequencies_hz,
-            illustrative_amp_frequency_hz,
-            illustrative_amp_gain_db,
-        ),
-        c="r",
-    )
-    _ax["amplifier_gain"].set_xlim(0, 40)
-    _ax["amplifier_gain"].set_xlabel("Frequency (MHz)")
-    _ax["amplifier_gain"].set_ylabel("Gain (dB)")
-    _ax["output_time"].set_title("Output Time Series")
-    _ax["output_time"].plot(illustrative_time_s / 1e-6, output_signal, c="C1")
-    _ax["output_time"].set_ylim(-time_amplitude_limit, time_amplitude_limit)
-    _ax["output_time"].set_xlabel(r"Time ($\mu$s)")
-    _ax["output_time"].set_ylabel("Amplitude")
-    _ax["output_frequency"].set_title("Output Frequency Spectrum")
-    _ax["output_frequency"].plot(
-        illustrative_fft_frequency_hz[illustrative_frequency_mask] / 1e6,
-        output_spectrum_amplitude[illustrative_frequency_mask],
-        c="C1",
-    )
-    _ax["output_frequency"].set_ylim(0, spectrum_amplitude_limit)
-    _ax["output_frequency"].set_xlabel("Frequency (MHz)")
-    _ax["output_frequency"].set_ylabel("Amplitude")
-    _fig.tight_layout(rect=[0, 0, 1, 0.95], pad=4, h_pad=5, w_pad=3)
     mo.vstack(
         [_fig, mo.Html("<div style='height: 24px'></div>")],
         gap=0,
