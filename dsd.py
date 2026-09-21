@@ -9,7 +9,7 @@ def _(mo):
     mo.md(r"""
     # What Happens When a Radar Wave Hits a Raindrop?
 
-    > Note that this is a marimo notebook (not google colab), so we have some extra features! The notebook should come up in the "app mode" which basically just shows you the formatted markdown and code outputs - not the actual code itself. There's a button in the bottom right where you can toggle this mode to see and edit the code for yourself.
+    > Note that this is a marimo notebook (not google colab), so we have some extra features! The whole thing runs in your browser, so there's nothing to install and no server running the code. It comes up in "app mode", which shows you the formatted markdown and the code outputs but not the code itself. The "..." menu in the top right has a "Show code" toggle if you want to read it, and it will also let you download the notebook as a `.py` file. To actually edit things and run them yourself, download that file and open it with marimo on your own machine.
 
     A radar image is made up of a ton of pixels. But what are the pixels made of?
 
