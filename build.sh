@@ -13,6 +13,7 @@ OUT="${OUT:-dist}"
 NOTEBOOKS=(
   gain
   reflectivity
+  dsd
 )
 
 rm -rf "$OUT"
