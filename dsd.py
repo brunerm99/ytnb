@@ -9,7 +9,7 @@ def _(mo):
     mo.md(r"""
     # What Happens When a Radar Wave Hits a Raindrop?
 
-    Provided as supplemental material for [Marshall Bruner](https://tinyurl.com/marshall-bruner-yt)'s animated video, Raindrops are Antennas.
+    Provided as supplemental material for [Marshall Bruner](https://tinyurl.com/marshall-bruner-yt)'s animated video on the [drop size distribution](https://tinyurl.com/dsd-video).
 
     * [Website (MarshallBruner.com)](https://marshallbruner.com)
     * [GitHub](https://tinyurl.com/github-nb)
