@@ -31,6 +31,10 @@ def _(mo):
     - The Radar Equation in Meteorology - Probert-Jones (paper) - https://tinyurl.com/probert-jones
     - Path To NEXRAD - Brown, Lewis (article) - https://tinyurl.com/path-to-nexrad
     - The WSR-88D and the WSR-88D Operational Support Facility - Crum, Alberty (article) - https://tinyurl.com/wsr88d-facility
+
+    <img src="https://notebooks.marshallbruner.com/public/raindrops_are_antennas.png"
+         alt="Raindrops are Antennas"
+         style="width: 100%; max-width: 640px; border-radius: 8px; display: block; margin: 1.5rem auto 0;" />
     """)
     return
 
