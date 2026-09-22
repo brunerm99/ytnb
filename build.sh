@@ -14,6 +14,7 @@ NOTEBOOKS=(
   gain
   reflectivity
   dsd
+  dsd-extended
 )
 
 rm -rf "$OUT"
@@ -22,7 +23,7 @@ mkdir -p "$OUT"
 for slug in "${NOTEBOOKS[@]}"; do
   echo "==> exporting $slug.py"
   uvx "marimo@$MARIMO_VERSION" export html-wasm "$slug.py" \
-    -o "$OUT/$slug" --mode run --show-code -f
+    -o "$OUT/$slug" --mode edit -f
 done
 
 # Data files, also served from a stable site-wide URL so any notebook (or
