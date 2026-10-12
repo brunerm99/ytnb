@@ -15,6 +15,7 @@ NOTEBOOKS=(
   reflectivity
   dsd
   dsd-extended
+  ridgeline
 )
 
 rm -rf "$OUT"
