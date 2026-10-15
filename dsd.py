@@ -1,6 +1,15 @@
+# /// script
+# dependencies = [
+#     "marimo>=0.25.1",
+#     "matplotlib",
+#     "numpy",
+#     "scipy",
+# ]
+# ///
+
 import marimo
 
-__generated_with = "0.23.14"
+__generated_with = "0.25.1"
 app = marimo.App(width="medium")
 
 
@@ -402,13 +411,29 @@ def polarization_controls(mo):
 
 
 @app.cell
-def polarization_helpers(ACCENT, BACKGROUND, BLUE, Circle, ICE, INK, np, plt):
+def polarization_helpers(
+    ACCENT,
+    BACKGROUND,
+    BLUE,
+    Circle,
+    ICE,
+    INK,
+    MUTED,
+    np,
+    plt,
+    style_axes,
+):
     def make_polarization_figure(
         relative_permittivity,
         field_angle_deg,
         field_phase_cycles,
     ):
-        figure, axis = plt.subplots(figsize=(7.8, 5.4))
+        figure, (axis, time_axis) = plt.subplots(
+            2,
+            1,
+            figsize=(7.8, 7.2),
+            gridspec_kw={"height_ratios": [5.4, 1.5]},
+        )
         figure.patch.set_facecolor(BACKGROUND)
         axis.set_facecolor(BACKGROUND)
 
@@ -524,7 +549,42 @@ def polarization_helpers(ACCENT, BACKGROUND, BLUE, Circle, ICE, INK, np, plt):
         for spine in axis.spines.values():
             spine.set_visible(False)
 
-        figure.tight_layout()
+        time_cycles = np.linspace(0, 1, 401)
+        time_axis.plot(
+            time_cycles,
+            np.cos(2 * np.pi * time_cycles),
+            color=BLUE,
+            linewidth=2,
+        )
+        time_axis.axhline(0, color=MUTED, linewidth=0.8, alpha=0.5)
+        time_axis.axvline(
+            field_phase_cycles,
+            color=ACCENT,
+            linewidth=1.2,
+            linestyle="--",
+            alpha=0.7,
+        )
+        time_axis.scatter(
+            [field_phase_cycles],
+            [phase_sample],
+            s=75,
+            color=ACCENT,
+            edgecolor=BACKGROUND,
+            linewidth=1,
+            zorder=4,
+            clip_on=False,
+        )
+        time_axis.set(
+            xlim=(0, 1),
+            ylim=(-1.25, 1.25),
+            xticks=[0, 0.25, 0.5, 0.75, 1],
+            yticks=[-1, 0, 1],
+            xlabel=r"$t/T$",
+            ylabel=r"$E_i(t)/E_0$",
+        )
+        style_axes(time_axis)
+
+        figure.tight_layout(h_pad=2)
         return figure
 
     return (make_polarization_figure,)
